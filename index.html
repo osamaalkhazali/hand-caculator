@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Finger Counter Calculator</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <style>
+    body { text-align: center; font-family: Arial, sans-serif; }
+    .container { position: relative; display: inline-block; }
+    canvas { border: 2px solid black; display: block; margin: auto; }
+    .result, .calculator { font-size: 24px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Finger Counter Calculator</h1>
+  <div class="container">
+    <video class="input_video" style="display:none;"></video>
+    <canvas class="output_canvas" width="640" height="480"></canvas>
+  </div>
+  <div class="result" style="display:none;" >Fingers Raised: <span id="output">0</span></div>
+  <div class="calculator">
+    <p>Expression: <span id="expression">0</span></p>
+    <p>Result: <span id="calcResult">0</span></p>
+  </div>
+  <p style="color:gray;">(6 = +, 7 = -, 8 = *, 9 = /, 10 = =)</p>
+
+  
+  <script type="module">
+    const videoElement = document.querySelector('.input_video');
+    const canvasElement = document.querySelector('.output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const resultElement = document.getElementById('output');
+    const expressionElement = document.getElementById('expression');
+    const calcResultElement = document.getElementById('calcResult');
+    
+    let expression = "";
+    let lastFingerCount = -1;
+    let detectedFingers = 0;
+    
+    function updateCalculator(fingerCount) {
+      if (fingerCount !== lastFingerCount) {
+        lastFingerCount = fingerCount;
+        
+        if (fingerCount >= 1 && fingerCount <= 5) expression += fingerCount;
+        if (fingerCount === 6) expression += "+";
+        if (fingerCount === 7) expression += "-";
+        if (fingerCount === 8) expression += "*";
+        if (fingerCount === 9) expression += "/";
+        if (fingerCount === 10) {
+          try {
+            calcResultElement.innerText = eval(expression) || 0;
+            expression = "";
+          } catch {
+            calcResultElement.innerText = "Error";
+            expression = "";
+          }
+        }
+        expressionElement.innerText = expression || 0;
+      }
+    }
+
+    function countRaisedFingers(landmarks, handedness) {
+      const fingers = [
+        [4, 2],  // Thumb (compare with knuckle instead of base)
+        [8, 5],  // Index
+        [12, 9], // Middle
+        [16, 13],// Ring
+        [20, 17] // Pinky
+      ];
+      
+      const margin = 0.02;
+      
+      return fingers.reduce((count, [tip, lower], index) => {
+        if (index === 0) { 
+          if (handedness === 'Right') {
+            return count + (landmarks[tip].x < landmarks[lower].x - margin ? 1 : 0);
+          } else {
+            return count + (landmarks[tip].x > landmarks[lower].x + margin ? 1 : 0);
+          }
+        } else {
+          return count + (landmarks[tip].y < landmarks[lower].y - margin ? 1 : 0);
+        }
+      }, 0);
+    }
+    
+    function onResults(results) {
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+      
+      let totalFingers = 0;
+      if (results.multiHandLandmarks) {
+        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+          const landmarks = results.multiHandLandmarks[i];
+          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 5 });
+          drawLandmarks(canvasCtx, landmarks, { color: '#FF0000', lineWidth: 2 });
+          totalFingers += countRaisedFingers(landmarks, results.multiHandedness[i].label);
+        }
+      }
+      detectedFingers = totalFingers;
+    }
+    
+    setInterval(() => {
+      resultElement.innerText = detectedFingers;
+      updateCalculator(detectedFingers);
+    }, 1000);
+    
+    const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+    hands.onResults(onResults);
+    
+    const camera = new Camera(videoElement, { onFrame: async () => await hands.send({ image: videoElement }), width: 1280, height: 720 });
+    camera.start();
+  </script>
+</body>
+</html>
