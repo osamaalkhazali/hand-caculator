@@ -32,7 +32,7 @@
     const videoElement = document.querySelector('.input_video');
     const canvasElement = document.querySelector('.output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
-    const resultElement = document.getElementById('output');
+    const raisedFingers = document.getElementById('output');
     const expressionElement = document.getElementById('expression');
     const calcResultElement = document.getElementById('calcResult');
     
@@ -103,7 +103,7 @@
     }
     
     setInterval(() => {
-      resultElement.innerText = detectedFingers;
+      raisedFingers.innerText = detectedFingers;
       updateCalculator(detectedFingers);
     }, 1000);
     
